@@ -48,8 +48,11 @@ class PDFRetrieverTool(Tool):
     name="pdf_retriever"
 
     description="""
-    Searches uploaded company PDFs and retrieves the most relevant information for answering
-    customer questions.
+    Retrieves relevant information from company PDFs.
+
+    Use this tool to gather evidence from documents.
+    After retrieving information, analyze the results and provide a concise answer to the user.
+    Do not simply repeat the retrieved documents unless specifically requested.
     """
     inputs={
         "query":{
@@ -82,7 +85,7 @@ class PDFRetrieverTool(Tool):
         return "\n\n".join(results)
     
 #agent creation
-# @st.cache_resource
+@st.cache_resource
 def build_agent():
     vectorstore=build_vectorstore()
     pdf_tool = PDFRetrieverTool(vectorstore)
@@ -132,7 +135,13 @@ else:
     if st.button("Search") and query:
         try:
             with st.spinner("Thinking..."):
-                response = agent.run(query)
+                response = agent.run(f"""
+                            Answer the user's question using information from the PDF retriever.
+
+                            User question:
+                            {query}
+                            Give a concise answer.
+                            """)
             st.write("### Answer")
             st.write(response)
         except Exception as e:

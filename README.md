@@ -19,6 +19,7 @@ The assistant answers customer questions by retrieving relevant information from
 
 ---
 
+
 ## Architecture
 
 ```text
@@ -70,8 +71,8 @@ Answer Generation
 Clone the repository:
 
 ```bash
-git clone <your-repository-url>
-cd <repository-name>
+git clone https://github.com/AnkitAcharya01/rag-agent.git
+cd rag-agent
 ```
 
 Create and activate a virtual environment:
@@ -115,6 +116,8 @@ Sign up or log in at:
 
 https://huggingface.co
 
+![Login Page](screenshots/hf_loginpage.png)
+
 ### Step 2: Generate an Access Token
 
 1. Click your profile picture in the top-right corner.
@@ -145,6 +148,8 @@ streamlit run app.py
 
 Paste your Hugging Face access token into the token field shown in the web interface.
 
+![Login Page](screenshots/app_loginpage.png)
+
 ### Security Note
 
 * Never commit your token to GitHub.
@@ -157,7 +162,11 @@ Paste your Hugging Face access token into the token field shown in the web inter
 
 Place your PDF documents inside the `pdfs/` directory.
 
+There will be default pdfs for a typical online shopping company.
 
+You can remove them and ADD YOUR OWN PDFs.
+
+![Default PDFs](screenshots/default_pdfs.png)
 
 Run the application:
 
@@ -172,17 +181,23 @@ Enter:
 1. Your Hugging Face access token
 2. A customer question
 
+![Login Page](screenshots/app_loginpage.png)
 Example:
 
 ```text
 What is the return policy for damaged products?
 ```
+![App Interface](screenshots/app_interface.png)
 
 The assistant will:
 
 1. Search the PDF knowledge base
 2. Retrieve relevant document chunks
 3. Generate a response using the retrieved information
+
+![LLM Thinking](screenshots/thinking.png)
+
+![Query answered](screenshots/Answered.png)
 
 ---
 
