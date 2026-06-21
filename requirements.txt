@@ -1,0 +1,11 @@
+streamlit
+faiss-cpu
+langchain
+langchain-community
+langchain-text-splitters
+langchain-huggingface
+smolagents
+huggingface-hub
+python-dotenv
+pypdf
+torchvision
