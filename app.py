@@ -3,44 +3,15 @@ import streamlit as st
 from pathlib import Path
 from dotenv import load_dotenv   
 import os
-from smolagents import Tool, CodeAgent, LiteLLMModel, InferenceClientModel
-from langchain_community.document_loaders import PyPDFLoader
-from langchain_text_splitters import RecursiveCharacterTextSplitter
-from langchain_huggingface import HuggingFaceEmbeddings
-from langchain_community.vectorstores import FAISS
+from smolagents import Tool, CodeAgent, InferenceClientModel
 
-def load_all_pdfs(pdf_folder: str):
-    documents = []
-    for pdf_path in Path(pdf_folder).glob("*.pdf"):
-        loader = PyPDFLoader(str(pdf_path))
-        documents.extend(loader.load())
-    return documents
+from vectorstore import get_vectorstore
 
 
 #build cached vectorDB
 @st.cache_resource
 def build_vectorstore():
-    print("Loading pdfs...")
-    documents = load_all_pdfs("pdfs")
-    print(f"Loaded {len(documents)} pages")
-            
-    splitter = RecursiveCharacterTextSplitter(
-        chunk_size=400,
-        chunk_overlap = 80
-    )
-
-    chunks = splitter.split_documents(documents)
-    print(f"Created {len(chunks)} chunks.")
-    #embedding
-    embeddings = HuggingFaceEmbeddings(
-        model_name="sentence-transformers/all-MiniLM-L6-v2"
-    )
-    print("Creating vector database...")
-    vectorstore = FAISS.from_documents(
-        chunks,
-        embeddings)
-    print("Vector database ready")
-    return vectorstore
+    return get_vectorstore()
 
 
 #tool

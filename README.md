@@ -77,10 +77,18 @@ cd rag-agent
 
 Create and activate a virtual environment:
 
+Linux/ MacOS:
 ```bash
 python -m venv .venv
 source .venv/bin/activate
 ```
+OR
+Windows:
+```bash
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1   
+```
+
 
 Install dependencies:
 
@@ -125,8 +133,11 @@ https://huggingface.co
 3. Select **Access Tokens** from the left sidebar.
 4. Click **Create new token**.
 5. Give the token a name (e.g., `customer-service-rag`).
-6. Select the **Finegrained** role.
-7. Click **Create token**.
+6. Select the **Finegrained** role (default).
+7. Under User's permissions, check **Make Calls to inference providers.**
+8. Click **Create token** at the very bottom.
+
+![User Permissions](screenshots/hf_token_permissions.png)
 
 ### Step 3: Copy the Token
 
@@ -138,17 +149,6 @@ hf_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 
 Copy and store it securely.
 
-### Step 4: Use the Token
-
-When you launch the application:
-
-```bash
-streamlit run app.py
-```
-
-Paste your Hugging Face access token into the token field shown in the web interface.
-
-![Login Page](screenshots/app_loginpage.png)
 
 ### Security Note
 
@@ -160,11 +160,11 @@ Paste your Hugging Face access token into the token field shown in the web inter
 
 ## Usage
 
-Place your PDF documents inside the `pdfs/` directory.
+You may place your custom PDF documents inside the `pdfs/` directory.
 
 There will be default pdfs for a typical online shopping company.
 
-You can remove them and ADD YOUR OWN PDFs.
+You can remove them and **ADD YOUR OWN PDFs**.
 
 ![Default PDFs](screenshots/default_pdfs.png)
 
@@ -176,16 +176,22 @@ streamlit run app.py
 
 Open the Streamlit URL displayed in your terminal.
 
+It will load for a bit.
+
+Then you will reach the login screen.
 Enter:
 
 1. Your Hugging Face access token
+Then, the agent reads the pdf.
+
+Enter:
 2. A customer question
 
 ![Login Page](screenshots/app_loginpage.png)
-Example:
+Example (since default PDFs are of an ecommerce site, called ShopNova):
 
 ```text
-What is the return policy for damaged products?
+Which phone brands are listed here?
 ```
 ![App Interface](screenshots/app_interface.png)
 
@@ -196,6 +202,8 @@ The assistant will:
 3. Generate a response using the retrieved information
 
 ![LLM Thinking](screenshots/thinking.png)
+
+Tip: Go back to the terminal while its thinking to see what actually happens at the back.
 
 ![Query answered](screenshots/Answered.png)
 
