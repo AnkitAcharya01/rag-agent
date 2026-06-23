@@ -101,19 +101,51 @@ if not st.session_state["hf_logged_in"]:
 else:
     agent = build_agent()
     
-    query = st.text_input("Hey, Can I assist you with your PDFs' information?")
+    
+    
+    
+    # query = st.text_input("Hey, Can I assist you with your PDFs' information?")
 
-    if st.button("Search") and query:
+    # if st.button("Search") and query:
+    if "messages" not in st.session_state:
+        st.session_state.messages=[]
+
+    #display existing messages
+    for msg in st.session_state.messages:
+        with st.chat_message(msg["role"]):
+            st.markdown(msg["content"])
+    
+    query = st.chat_input("Ask a question about your PDFs...")
+    if query:
+        st.session_state.messages.append({
+            "role": "user", "content": query
+        })
+        with st.chat_message("user"):
+            st.markdown(query)
+
         try:
             with st.spinner("Thinking..."):
-                response = agent.run(f"""
-                            Answer the user's question using information from the PDF retriever.
 
-                            User question:
-                            {query}
-                            Give a concise answer.
-                            """)
-            st.write("### Answer")
-            st.write(response)
+                history = "\n".join(
+                    f"{m['role']}: {m['content']}" for m in st.session_state.messages[-10:]
+                )
+                prompt = f"""
+                        You are a helpful PDF RAG Assistant.
+                        Conversation history: {history}
+                        Answer the latest question using the pdf retriever tool.
+
+                        Latest question: {query}
+                        Give only relevant and concise answer, not the entire docs.
+                    
+                        """
+
+                response = agent.run(prompt)
+            with st.chat_message("assistant"):
+                st.markdown(response)
+            st.session_state.messages.append({
+                "role":"assistant", "content": response
+            })
+            
         except Exception as e:
             st.error(f"Error occured: {e}")
+    
