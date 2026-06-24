@@ -36,7 +36,7 @@ class PDFRetrieverTool(Tool):
     def __init__(self, vectorstore):
         super().__init__()
         self.retriever = vectorstore.as_retriever(
-            search_kwargs={"k": 5}
+            search_kwargs={"k": 3}
         )
     
     def forward(self, query:str)->str:
@@ -70,16 +70,39 @@ def build_agent():
 
     
 #new login based UI
-from huggingface_hub import login
+#new login logic flow: check .env for token, if available:try login, 
+# else try get_token() from hf cache dir
+# else, require login manually by pasting hf token to UI
+from huggingface_hub import login, get_token
 st.title("RAG-based Assistant")
 if("hf_logged_in" not in st.session_state):
-    st.session_state["hf_logged_in"]=False
+    env_token = os.getenv("HF_TOKEN")
+
+    if env_token:
+        try:
+            login(token=env_token)
+            print("for debug: logged in through env")
+            st.session_state["hf_logged_in"]=True
+        except Exception as e:
+            st.session_state["hf_logged_in"]=False
+            print("env login error!")
+            st.session_state["hf_login_error"]=str(e)
+    
+    #fallback to disk
+    elif get_token():
+        print("for debug: logged in through disk cache dir")
+        st.session_state["hf_logged_in"]=True
+    else:
+        st.session_state["hf_logged_in"]=False
 
 if not st.session_state["hf_logged_in"]:
+    if st.session_state.get("hf_login_error"):
+        print("for debug: auto login failed")
+        st.error(f"Auto login from .env failed: {st.session_state['hf_login_error']}")
     hf_token = st.text_input(
         "Hugging Face Access Token",
         type="password",
-        help="Enter your Hugging Face Access Token (hf_...)"
+        help="Paste your Hugging Face Access Token (hf_...)"
     )
 
     if hf_token and not hf_token.startswith("hf_"):
@@ -101,12 +124,6 @@ if not st.session_state["hf_logged_in"]:
 else:
     agent = build_agent()
     
-    
-    
-    
-    # query = st.text_input("Hey, Can I assist you with your PDFs' information?")
-
-    # if st.button("Search") and query:
     if "messages" not in st.session_state:
         st.session_state.messages=[]
 

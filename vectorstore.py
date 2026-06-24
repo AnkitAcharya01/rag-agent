@@ -5,7 +5,7 @@ from langchain_huggingface import HuggingFaceEmbeddings
 from pathlib import Path
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_community.document_loaders import PyPDFLoader
-
+import streamlit as st
 
 
 def load_all_pdfs(pdf_folder: str):
@@ -44,18 +44,30 @@ embeddings = HuggingFaceEmbeddings(
     model_name = "sentence-transformers/all-MiniLM-L6-v2"
 )
 
+
+#updated for rebuild after deletion
 def get_vectorstore():
     current_fp = get_pdf_fingerprint()
+
+    rebuild=True
 
     if(Path(INDEX_DIR).exists() and Path(FINGERPRINT_FILE).exists()):
         saved_fp = Path(FINGERPRINT_FILE).read_text()
 
         if saved_fp == current_fp:
-            print("Loading existing FAISS files...")
-
-            return FAISS.load_local(INDEX_DIR, embeddings, allow_dangerous_deserialization=True)
+            rebuild=False
+    
+    if not rebuild:
+        print("Loading existing FAISS files...")
+        return FAISS.load_local(INDEX_DIR, embeddings, allow_dangerous_deserialization=True)
         
+
     print("Building new FAISS index...")
+    
+    if Path(INDEX_DIR).exists():
+        import shutil
+        shutil.rmtree(INDEX_DIR)
+
     print("Loading pdfs...")
     documents = load_all_pdfs("pdfs")
     print(f"Loaded {len(documents)} pages")
@@ -67,6 +79,7 @@ def get_vectorstore():
     chunks = splitter.split_documents(documents)
     print(f"Created {len(chunks)} chunks.")
     print("Creating vector database...")
+    
     vectorstore = FAISS.from_documents(chunks, embeddings)
     print("Vector database Ready!")
     vectorstore.save_local(INDEX_DIR)

@@ -149,6 +149,11 @@ hf_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 
 Copy and store it securely.
 
+*Pro Tip: If you want to skip the login hastle: Before running, you can directly paste your access token to .env file as:*
+HF_TOKEN=hf_xxxxxxxxxxxxxxx 
+
+Else, you can paste it in the login screen.
+
 
 ### Security Note
 
@@ -169,6 +174,7 @@ You can remove them and **ADD YOUR OWN PDFs**.
 ![Default PDFs](screenshots/default_pdfs.png)
 
 Run the application:
+
 
 ```bash
 streamlit run app.py
