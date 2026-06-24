@@ -4,6 +4,7 @@ from pathlib import Path
 from dotenv import load_dotenv   
 import os
 from smolagents import Tool, CodeAgent, InferenceClientModel
+from huggingface_hub import login, get_token, logout
 
 from vectorstore import get_vectorstore
 
@@ -73,7 +74,8 @@ def build_agent():
 #new login logic flow: check .env for token, if available:try login, 
 # else try get_token() from hf cache dir
 # else, require login manually by pasting hf token to UI
-from huggingface_hub import login, get_token
+
+
 st.title("RAG-based Assistant")
 if("hf_logged_in" not in st.session_state):
     env_token = os.getenv("HF_TOKEN")
@@ -105,13 +107,17 @@ if not st.session_state["hf_logged_in"]:
         help="Paste your Hugging Face Access Token (hf_...)"
     )
 
-    if hf_token and not hf_token.startswith("hf_"):
-        st.warning("This doesnt look like a valid Hf Access Token!")
-        st.stop()
+    #a major bug! each keystore triggers rerun, so it nener reaches hf_, unless pasted at once.
+    # if hf_token and not hf_token.startswith("hf_"):
+    #     st.warning("This doesnt look like a valid Hf Access Token!")
+    #     st.stop()
 
     if st.button("login"):
         if not hf_token:
             st.error("Please Enter a Hugging Face Token!")
+            st.stop()
+        if hf_token and not hf_token.startswith("hf_"):
+            st.warning("This doesn't look like a valid H Access Token!")
             st.stop()
         try:
             login(token=hf_token)
@@ -122,6 +128,69 @@ if not st.session_state["hf_logged_in"]:
             st.error(f"Login failed: {e}")
             st.stop()
 else:
+    #pdf management sidebar
+    PDF_DIR=Path("pdfs")
+    PDF_DIR.mkdir(exist_ok=True)
+
+
+
+    with st.sidebar:
+        if st.button("Logout"):
+            logout()
+            st.session_state["hf_logged_in"]=False
+            st.rerun()
+            
+        st.header("PDF Management")
+
+        if "uploader_key" not in st.session_state:
+            st.session_state["uploader_key"] = 0
+
+
+        uploaded_files = st.file_uploader(
+            "Upload PDFs",
+            type=['pdf'],
+            accept_multiple_files=True,
+            key=f"uploader_{st.session_state['uploader_key']}"
+        )
+
+        if uploaded_files:
+            for uploaded_file in uploaded_files:
+                save_path = PDF_DIR / uploaded_file.name
+
+                with open(save_path, "wb") as f:
+                    f.write(uploaded_file.getbuffer())
+            
+            #clear cache 
+            build_vectorstore.clear()
+            build_agent.clear()
+            st.session_state["uploader_key"]+=1
+            st.success("PDFs uploaded.")
+            st.rerun()
+        
+        st.divider()
+        #shows the list of pdfs 
+        st.subheader("Current PDFs")
+        pdfs = sorted(PDF_DIR.glob("*.pdf"))
+
+        for pdf in pdfs:
+            col1, col2 = st.columns([4,1])
+
+            with col1:
+                st.text(pdf.name)
+            with col2:
+                if st.button("⛔", key=f"delete_{pdf.name}"):
+                    if pdf.exists():
+                        pdf.unlink()
+
+                    build_vectorstore.clear()
+                    build_agent.clear()
+
+                    st.success("Deleted") 
+                    st.rerun()
+                    #also clear agent cache if pdf deleted
+
+                
+
     agent = build_agent()
     
     if "messages" not in st.session_state:

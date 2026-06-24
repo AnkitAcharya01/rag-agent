@@ -39,16 +39,18 @@ INDEX_DIR = ".cache/faiss"
 FINGERPRINT_FILE = ".cache/faiss/fingerprint.txt"
 
 #to load(if pdfs unchanged) or to rebuild(if pdfs fingerprints changed) the vectorstore
+@st.cache_resource
+def get_embeddings():
+    return HuggingFaceEmbeddings(
+        model_name = "sentence-transformers/all-MiniLM-L6-v2"
+    )
 
-embeddings = HuggingFaceEmbeddings(
-    model_name = "sentence-transformers/all-MiniLM-L6-v2"
-)
 
 
 #updated for rebuild after deletion
 def get_vectorstore():
     current_fp = get_pdf_fingerprint()
-
+    embeddings = get_embeddings()
     rebuild=True
 
     if(Path(INDEX_DIR).exists() and Path(FINGERPRINT_FILE).exists()):

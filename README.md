@@ -165,13 +165,14 @@ Else, you can paste it in the login screen.
 
 ## Usage
 
-You may place your custom PDF documents inside the `pdfs/` directory.
+You may place your custom PDF documents inside the from the web Interface directly. 
+**No need to touch the files internally.**
 
 There will be default pdfs for a typical online shopping company.
 
-You can remove them and **ADD YOUR OWN PDFs**.
+You can remove them and **UPLOAD YOUR OWN PDFs**.
 
-![Default PDFs](screenshots/default_pdfs.png)
+![Addinf PDFs from UI](screenshots/Add_pdf_from_UI.png)
 
 Run the application:
 
@@ -182,24 +183,29 @@ streamlit run app.py
 
 Open the Streamlit URL displayed in your terminal.
 
-It will load for a bit.
+First load of the app will take some time.
 
 Then you will reach the login screen.
-Enter:
-
-1. Your Hugging Face access token
-Then, the agent reads the pdf.
-
-Enter:
-2. A customer question
 
 ![Login Page](screenshots/app_loginpage.png)
+
+Enter:
+
+1. Your Hugging Face access token. 
+
+2. From the sidebar, delete default PDFs, and click **Upload** to upload PDFs.
+![Addinf PDFs from UI](screenshots/Add_pdf_from_UI.png)
+
+3. Enter questions related to your PDF.
+
+![LLM Thinking](screenshots/thinking.png)
+
 Example (since default PDFs are of an ecommerce site, called ShopNova):
 
 ```text
 Which phone brands are listed here?
 ```
-![App Interface](screenshots/app_interface.png)
+
 
 The assistant will:
 
@@ -207,11 +213,13 @@ The assistant will:
 2. Retrieve relevant document chunks
 3. Generate a response using the retrieved information
 
-![LLM Thinking](screenshots/thinking.png)
 
 Tip: Go back to the terminal while its thinking to see what actually happens at the back.
 
 ![Query answered](screenshots/Answered.png)
+
+#### Conversation History
+You can ask further questions without repeating everything. The agent remembers what you said earlier.
 
 ---
 
@@ -225,14 +233,18 @@ Tip: Go back to the terminal while its thinking to see what actually happens at 
 
 ---
 
+## Ran out of free tokens?
+Simply click the **Logout** button from the sidebar,then create a new HuggingFace Account as stated earlier, using a different email address. Then login with that token.
+Remember to immediately save each new token locally after you create it.
+
+
 ## Future Improvements
 
-* Conversation memory
-* Custom PDF upload through the UI (currently PDFs are loaded from the project's pdfs/ directory)
+* Conversation memory (done)
+* Custom PDF upload through the UI (done)
 * Multi-PDF source citations
 * Hybrid retrieval (BM25 + semantic search)
 * Persistent FAISS index
-* Document upload from the UI
 * Support for multiple LLM providers
 * Voice Support
 ---
