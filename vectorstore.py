@@ -74,8 +74,8 @@ def get_vectorstore():
     documents = load_all_pdfs("pdfs")
     print(f"Loaded {len(documents)} pages")
     splitter = RecursiveCharacterTextSplitter(
-        chunk_size = 800,
-        chunk_overlap = 100,
+        chunk_size = 700,
+        chunk_overlap = 140,
     )
 
     chunks = splitter.split_documents(documents)

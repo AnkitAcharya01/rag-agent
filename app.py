@@ -1,13 +1,22 @@
 import streamlit as st
 
 from pathlib import Path
-from dotenv import load_dotenv   
+from dotenv import load_dotenv  
 import os
-from smolagents import Tool, CodeAgent, InferenceClientModel
+from smolagents import Tool, ToolCallingAgent, OpenAIServerModel
 from huggingface_hub import login, get_token, logout
+from huggingface_hub import InferenceClient
+import time
+from openai import OpenAI
+
 
 from vectorstore import get_vectorstore
+from tt_speech import tts, autoplay_audio
 
+load_dotenv() 
+
+def get_tts_client():
+    return InferenceClient()
 
 #build cached vectorDB
 @st.cache_resource
@@ -20,11 +29,13 @@ class PDFRetrieverTool(Tool):
     name="pdf_retriever"
 
     description="""
-    Retrieves relevant information from company PDFs.
-
-    Use this tool to gather evidence from documents.
+    Use this tool to search PDFs and return relevant excerpts.
     After retrieving information, analyze the results and provide a concise answer to the user.
     Do not simply repeat the retrieved documents unless specifically requested.
+
+    IMPORTANT:
+    - This is raw evidence, not the final answer
+    - Keep results short and relevant
     """
     inputs={
         "query":{
@@ -37,7 +48,8 @@ class PDFRetrieverTool(Tool):
     def __init__(self, vectorstore):
         super().__init__()
         self.retriever = vectorstore.as_retriever(
-            search_kwargs={"k": 3}
+            search_type="mmr",
+            search_kwargs={"k": 4, "fetch_k": 10}
         )
     
     def forward(self, query:str)->str:
@@ -63,65 +75,73 @@ def build_agent():
     pdf_tool = PDFRetrieverTool(vectorstore)
   
 
-    #agent creation
-    agent=CodeAgent(tools=[pdf_tool], model=InferenceClientModel()) 
+    groq_key = st.session_state.get("groq_token")
 
+    if not groq_key:
+        st.error("Groq API key missing")
+        st.stop()
+
+    model = OpenAIServerModel(
+        model_id="llama-3.3-70b-versatile",
+        api_base="https://api.groq.com/openai/v1",
+        api_key=groq_key,
+        temperature=0,
+        
+    )
+
+    agent = ToolCallingAgent(
+        tools=[pdf_tool],
+        model=model,
+        max_steps=4
+    )
     return agent
 
+transcription_client = OpenAI(
+    api_key=os.getenv("GROQ_API_KEY"),
+    base_url="https://api.groq.com/openai/v1"
+)
 
     
-#new login based UI
-#new login logic flow: check .env for token, if available:try login, 
-# else try get_token() from hf cache dir
-# else, require login manually by pasting hf token to UI
+
+# login logic flow: check .env for token, if available:try login, 
+# else, require login manually by pasting api key from UI
 
 
 st.title("RAG-based Assistant")
-if("hf_logged_in" not in st.session_state):
-    env_token = os.getenv("HF_TOKEN")
+if("groq_logged_in" not in st.session_state):
+    env_token = os.getenv("GROQ_API_KEY")
 
     if env_token:
-        try:
-            login(token=env_token)
-            print("for debug: logged in through env")
-            st.session_state["hf_logged_in"]=True
-        except Exception as e:
-            st.session_state["hf_logged_in"]=False
-            print("env login error!")
-            st.session_state["hf_login_error"]=str(e)
-    
-    #fallback to disk
-    elif get_token():
-        print("for debug: logged in through disk cache dir")
-        st.session_state["hf_logged_in"]=True
+        
+        st.session_state["groq_token"] = env_token
+        st.session_state["groq_logged_in"]=True
+        print("for debug: logged in through env")
     else:
-        st.session_state["hf_logged_in"]=False
+        st.session_state["groq_logged_in"]=False
+        print("env login error!")
+        
+    
 
-if not st.session_state["hf_logged_in"]:
-    if st.session_state.get("hf_login_error"):
-        print("for debug: auto login failed")
-        st.error(f"Auto login from .env failed: {st.session_state['hf_login_error']}")
-    hf_token = st.text_input(
-        "Hugging Face Access Token",
+if not st.session_state["groq_logged_in"]:
+    
+    groq_token = st.text_input(
+        "Groq API Key",
         type="password",
-        help="Paste your Hugging Face Access Token (hf_...)"
+        help="Paste your Groq API Key (gsk_...)"
     )
 
-    #a major bug! each keystore triggers rerun, so it nener reaches hf_, unless pasted at once.
-    # if hf_token and not hf_token.startswith("hf_"):
-    #     st.warning("This doesnt look like a valid Hf Access Token!")
-    #     st.stop()
-
+    #login button
     if st.button("login"):
-        if not hf_token:
-            st.error("Please Enter a Hugging Face Token!")
+        if not groq_token:
+            st.error("Please Enter a Groq API Key!")
             st.stop()
-        if hf_token and not hf_token.startswith("hf_"):
-            st.warning("This doesn't look like a valid H Access Token!")
+        if groq_token and not groq_token.startswith("gsk_"):
+            st.warning("This doesn't look like a valid Groq API Key!")
             st.stop()
         try:
-            login(token=hf_token)
-            st.session_state["hf_logged_in"] = True
+            
+            st.session_state["groq_token"] = groq_token
+            st.session_state["groq_logged_in"] = True
             st.success("Successfully logged in!")
             st.rerun()
         except Exception as e:
@@ -132,12 +152,13 @@ else:
     PDF_DIR=Path("pdfs")
     PDF_DIR.mkdir(exist_ok=True)
 
-
-
+    #logout button
     with st.sidebar:
         if st.button("Logout"):
             logout()
-            st.session_state["hf_logged_in"]=False
+            st.session_state["groq_logged_in"]=False
+            st.session_state.pop("groq_token", None)
+            build_agent.clear()
             st.rerun()
             
         st.header("PDF Management")
@@ -190,8 +211,8 @@ else:
                     #also clear agent cache if pdf deleted
 
                 
-
-    agent = build_agent()
+    with st.spinner("Loading Knowledge base..."):
+        agent = build_agent()
     
     if "messages" not in st.session_state:
         st.session_state.messages=[]
@@ -201,37 +222,93 @@ else:
         with st.chat_message(msg["role"]):
             st.markdown(msg["content"])
     
-    query = st.chat_input("Ask a question about your PDFs...")
-    if query:
-        st.session_state.messages.append({
-            "role": "user", "content": query
-        })
-        with st.chat_message("user"):
-            st.markdown(query)
 
-        try:
-            with st.spinner("Thinking..."):
+    
 
-                history = "\n".join(
-                    f"{m['role']}: {m['content']}" for m in st.session_state.messages[-10:]
-                )
-                prompt = f"""
-                        You are a helpful PDF RAG Assistant.
-                        Conversation history: {history}
-                        Answer the latest question using the pdf retriever tool.
+    #text or audio input
+    prompt = st.chat_input("Ask a question about your PDFs...", 
+                          accept_audio=True,
+                          audio_sample_rate=16000)
 
-                        Latest question: {query}
-                        Give only relevant and concise answer, not the entire docs.
-                    
-                        """
+    if prompt:
+        query=None
+        
+        #voice input
+        if prompt.audio:
+            with st.spinner("Analysing your voice..."):
+                with open("temp.wav", "wb") as f:
+                    f.write(prompt.audio.getvalue())
 
-                response = agent.run(prompt)
-            with st.chat_message("assistant"):
-                st.markdown(response)
+                with open("temp.wav", "rb") as audio_file:
+                    transcript = transcription_client.audio.transcriptions.create(
+                        model="whisper-large-v3-turbo",
+                        file = audio_file
+                    )
+                query = transcript.text
+
+      
+            print("type of audio:")
+            print(type(prompt.audio))
+
+        elif prompt.text:
+            query=prompt.text
+    
+        if query:
             st.session_state.messages.append({
-                "role":"assistant", "content": response
+                "role": "user", "content": query
             })
-            
-        except Exception as e:
-            st.error(f"Error occured: {e}")
+            with st.chat_message("user"):
+                st.markdown(query)
+
+            try:
+                with st.spinner("Thinking..."):
+
+                    history = "\n".join(
+                        f"{m['role']}: {m['content']}" for m in st.session_state.messages[-10:]
+                    )
+                    prompt = f"""
+                            You are a helpful PDF RAG Assistant.
+                            Conversation history: {history}
+                            Answer the latest question using the pdf retriever tool.
+
+                            Latest question: {query}
+                            NEVER RESPOND IN MORE THAN ONE SENTENCE, UNDER ANY CIRCUMSTANCES.
+                            Give only relevant and concise answer, not the entire docs.
+                        
+                            """
+
+                                        
+                    try:
+                        response = agent.run(prompt)
+                    except Exception as first_err:
+                        if "tool_use_failed" in str(first_err):
+                            response = agent.run(prompt)   # transient malformed tool_call — retry once
+                        else:
+                            raise
+
+                with st.chat_message("assistant"):
+                    st.markdown(response)
+                    with st.spinner("Generating audio..."):
+                        try:
+                            time1 = time.time()
+                            audio_bytes = tts(response)
+                            time2 = time.time()
+                            autoplay_audio(audio_bytes)
+                            time3 = time.time()
+                            print(f"TTs took: {time2-time1}")
+                            print(f"Auto play took: {time3-time2}")
+                            print(f"Total: {time3-time1}")
+                            # st.audio(audio_bytes, format="audio/wav", autoplay=True)
+                        except Exception as e:
+                            print(f"Error occured: {e}")
+
+
+                
+                st.session_state.messages.append({
+                    "role":"assistant", "content": response
+                
+                })
+                
+            except Exception as e:
+                st.error(f"Error occured: {e}")
     
