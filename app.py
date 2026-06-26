@@ -4,11 +4,10 @@ from pathlib import Path
 from dotenv import load_dotenv  
 import os
 from smolagents import Tool, ToolCallingAgent, OpenAIServerModel
-from huggingface_hub import login, get_token, logout
 from huggingface_hub import InferenceClient
 import time
 from openai import OpenAI
-
+from io import BytesIO
 
 from vectorstore import get_vectorstore
 from tt_speech import tts, autoplay_audio
@@ -123,7 +122,8 @@ if("groq_logged_in" not in st.session_state):
     
 
 if not st.session_state["groq_logged_in"]:
-    
+    with st.sidebar:        
+        st.link_button("Get Free Groq API Key", "https://console.groq.com/keys")
     groq_token = st.text_input(
         "Groq API Key",
         type="password",
@@ -138,15 +138,22 @@ if not st.session_state["groq_logged_in"]:
         if groq_token and not groq_token.startswith("gsk_"):
             st.warning("This doesn't look like a valid Groq API Key!")
             st.stop()
-        try:
-            
+        login_error = False
+        with st.spinner("Verifying..."):
+            try:
+                login_test = OpenAI(api_key=groq_token, base_url="https://api.groq.com/openai/v1")
+                login_test.models.list()
+            except Exception as e:                            
+                login_error = True
+        if login_error:        
+            st.error("Invalid Groq API Key, Login Failed!")
+        else:
             st.session_state["groq_token"] = groq_token
             st.session_state["groq_logged_in"] = True
+            os.environ["GROQ_API_KEY"]=groq_token
             st.success("Successfully logged in!")
             st.rerun()
-        except Exception as e:
-            st.error(f"Login failed: {e}")
-            st.stop()
+        
 else:
     #pdf management sidebar
     PDF_DIR=Path("pdfs")
@@ -154,8 +161,8 @@ else:
 
     #logout button
     with st.sidebar:
-        if st.button("Logout"):
-            logout()
+        if st.button("Use a different Groq Key"):
+            
             st.session_state["groq_logged_in"]=False
             st.session_state.pop("groq_token", None)
             build_agent.clear()
@@ -173,7 +180,7 @@ else:
             accept_multiple_files=True,
             key=f"uploader_{st.session_state['uploader_key']}"
         )
-
+        
         if uploaded_files:
             for uploaded_file in uploaded_files:
                 save_path = PDF_DIR / uploaded_file.name
@@ -192,7 +199,9 @@ else:
         #shows the list of pdfs 
         st.subheader("Current PDFs")
         pdfs = sorted(PDF_DIR.glob("*.pdf"))
-
+        if len(pdfs)==0:
+            st.info("Please upload one or more PDFs")
+            st.stop()
         for pdf in pdfs:
             col1, col2 = st.columns([4,1])
 
@@ -215,7 +224,8 @@ else:
         agent = build_agent()
     
     if "messages" not in st.session_state:
-        st.session_state.messages=[]
+        st.session_state.messages=[{"role": "assistant", 
+                                    "content": "How can I help you?"}]
 
     #display existing messages
     for msg in st.session_state.messages:
@@ -236,14 +246,15 @@ else:
         #voice input
         if prompt.audio:
             with st.spinner("Analysing your voice..."):
-                with open("temp.wav", "wb") as f:
-                    f.write(prompt.audio.getvalue())
+                audio_bytes = prompt.audio.getvalue()
+                audio_file = BytesIO(audio_bytes)
+                audio_file.name = "audio.wav"
 
-                with open("temp.wav", "rb") as audio_file:
-                    transcript = transcription_client.audio.transcriptions.create(
-                        model="whisper-large-v3-turbo",
-                        file = audio_file
-                    )
+                transcript = transcription_client.audio.transcriptions.create(
+                    model = "whisper-large-v3-turbo",
+                    file = audio_file
+                )
+                
                 query = transcript.text
 
       
@@ -267,13 +278,20 @@ else:
                         f"{m['role']}: {m['content']}" for m in st.session_state.messages[-10:]
                     )
                     prompt = f"""
-                            You are a helpful PDF RAG Assistant.
-                            Conversation history: {history}
-                            Answer the latest question using the pdf retriever tool.
+                            You are a helpful PDF RAG assistant.
+                            Use the conversation history only to resolve references such as "it", "they", or "that".
 
+                            Use the retrieved documents as the ONLY factual source.
+
+                            If the retrieved documents answer the user's latest question after resolving references, answer using them.
+                            Otherwise reply: "I have no information about that."
+                            Conversation history: {history}
                             Latest question: {query}
-                            NEVER RESPOND IN MORE THAN ONE SENTENCE, UNDER ANY CIRCUMSTANCES.
-                            Give only relevant and concise answer, not the entire docs.
+
+                            DONOT Make up the answer yourself.
+                            
+                            Respond in a single sentence.
+                            Give only relevant answer, with engaging style, donot paste the entire docs.
                         
                             """
 
@@ -282,7 +300,7 @@ else:
                         response = agent.run(prompt)
                     except Exception as first_err:
                         if "tool_use_failed" in str(first_err):
-                            response = agent.run(prompt)   # transient malformed tool_call — retry once
+                            response = agent.run(prompt)   # for transient malformed tool_call, retry once
                         else:
                             raise
 
@@ -297,8 +315,7 @@ else:
                             time3 = time.time()
                             print(f"TTs took: {time2-time1}")
                             print(f"Auto play took: {time3-time2}")
-                            print(f"Total: {time3-time1}")
-                            # st.audio(audio_bytes, format="audio/wav", autoplay=True)
+                            print(f"Total: {time3-time1}")                            
                         except Exception as e:
                             print(f"Error occured: {e}")
 

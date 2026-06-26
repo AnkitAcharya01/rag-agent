@@ -80,6 +80,9 @@ def get_vectorstore():
 
     chunks = splitter.split_documents(documents)
     print(f"Created {len(chunks)} chunks.")
+    if not chunks:
+        print("No chunks created")
+        return None
     print("Creating vector database...")
     
     vectorstore = FAISS.from_documents(chunks, embeddings)

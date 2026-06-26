@@ -10,3 +10,5 @@ python-dotenv
 pypdf
 torchvision
 sentence-transformers
+openai
+groq

@@ -1,5 +1,3 @@
-Here is your README rewritten for **Groq instead of Hugging Face**, keeping your structure intact and only changing what’s necessary:
-
 ---
 
 # PDF RAG Customer Service Assistant
@@ -20,6 +18,8 @@ The assistant answers customer questions by retrieving relevant information from
 * Groq-hosted OpenAI-compatible LLM integration
 * Streamlit web interface
 * Retrieval-Augmented Generation (RAG)
+* Uses whisper-large-ve-turbo for STT
+* Uses canopylabs/orpheus-v1-english for TTS
 
 ---
 
@@ -123,6 +123,7 @@ project/
 This application uses the **Groq API (OpenAI-compatible endpoint)** and requires an API key.
 
 ### Step 1: Create a Groq Account
+*You can do this directly through the link at streamlit login screen.*
 
 Sign up or log in at:
 
@@ -202,10 +203,11 @@ First startup may take a few seconds.
 Then you will reach the interface.
 
 ---
-
+![Login Screen](screenshots/login_screen.png)
+![Home Screen](screenshots/main_interface.png)
 ## Example Interaction
 
-Example (default dataset is an ecommerce store called ShopNova):
+Example (default dataset is an ecommerce store called MeroTech):
 
 ```text
 Which phone brands are listed here?
@@ -222,7 +224,7 @@ The assistant will:
 ## Conversation History
 
 You can continue conversations without repeating context. The agent maintains chat history during the session.
-
+![Conversation](screenshots/conversation.png)
 ---
 
 ## Example Questions
@@ -234,6 +236,10 @@ You can continue conversations without repeating context. The agent maintains ch
 * How can I request a refund?
 
 ---
+## Talk to it
+
+You can use the microphone button at the right side of the textbox to start audio input.
+Currently only english is recommended.
 
 ## Future Improvements
 

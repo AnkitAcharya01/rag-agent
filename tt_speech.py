@@ -1,7 +1,9 @@
 from groq import Groq
-from io import BytesIO
 import os
 from dotenv import load_dotenv
+
+import base64
+import streamlit as st
 
 load_dotenv()
 
@@ -18,9 +20,6 @@ def tts(text:str):
 
     return response.read()
 
-
-import base64
-import streamlit as st
 
 def autoplay_audio(audio_bytes):
     b64 = base64.b64encode(audio_bytes).decode()
