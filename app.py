@@ -50,16 +50,18 @@ class PDFRetrieverTool(Tool):
             search_type="mmr",
             search_kwargs={"k": 4, "fetch_k": 10}
         )
+        
     
     def forward(self, query:str)->str:
         docs = self.retriever.invoke(query)
 
-        if not docs:
+        if not docs:            
             return "No relevant information found."
-        
+            
         results=[]
         for i, doc in enumerate(docs, start=1):
             source = doc.metadata.get("source", "unknown")
+            
             results.append(f"""
             DOCUMENT {i}
             SOURCE: {source}
@@ -100,21 +102,39 @@ transcription_client = OpenAI(
     base_url="https://api.groq.com/openai/v1"
 )
 
+def login_verification(token):
+    with st.spinner("Verifying..."):
+        try:
+            login_test = OpenAI(api_key=token, base_url="https://api.groq.com/openai/v1")
+            login_test.models.list()
+            return True
+        except Exception as e:                            
+            return False
     
 
 # login logic flow: check .env for token, if available:try login, 
 # else, require login manually by pasting api key from UI
 
-
+TOKEN_CACHE_FILE = Path(".cache/groq_token.txt")
 st.title("RAG-based Assistant")
 if("groq_logged_in" not in st.session_state):
-    env_token = os.getenv("GROQ_API_KEY")
+    
+    cached_token = TOKEN_CACHE_FILE.read_text.strip() if TOKEN_CACHE_FILE.exists() else None
 
-    if env_token:
+    if cached_token:                                #first check cache for api key
+        st.session_state["groq_token"] = cached_token
+        st.session_state["groq_logged_in"] = True
         
-        st.session_state["groq_token"] = env_token
-        st.session_state["groq_logged_in"]=True
-        print("for debug: logged in through env")
+    elif os.getenv("GROQ_API_KEY"):                 #then check env file
+        if login_verification(os.getenv("GROQ_API_KEY")):
+            st.session_state["groq_token"] = os.getenv("GROQ_API_KEY")
+            st.session_state["groq_logged_in"]=True
+            print("for debug: logged in through env")
+        
+        else:       #invalid env token, user logs in manually        
+            st.session_state["groq_logged_in"]=False
+            print("Invalid token in .env file")
+               
     else:
         st.session_state["groq_logged_in"]=False
         print("env login error!")
@@ -138,20 +158,20 @@ if not st.session_state["groq_logged_in"]:
         if groq_token and not groq_token.startswith("gsk_"):
             st.warning("This doesn't look like a valid Groq API Key!")
             st.stop()
-        login_error = False
-        with st.spinner("Verifying..."):
-            try:
-                login_test = OpenAI(api_key=groq_token, base_url="https://api.groq.com/openai/v1")
-                login_test.models.list()
-            except Exception as e:                            
-                login_error = True
-        if login_error:        
+        
+        #verification of what user typed
+        if not login_verification(groq_token):
             st.error("Invalid Groq API Key, Login Failed!")
         else:
+            TOKEN_CACHE_FILE.parent.mkdir(parents=True, exist_ok=True)
+            TOKEN_CACHE_FILE.write_text(groq_token)
+
             st.session_state["groq_token"] = groq_token
             st.session_state["groq_logged_in"] = True
-            os.environ["GROQ_API_KEY"]=groq_token
+            
+            
             st.success("Successfully logged in!")
+            
             st.rerun()
         
 else:
@@ -162,7 +182,8 @@ else:
     #logout button
     with st.sidebar:
         if st.button("Use a different Groq Key"):
-            
+            if TOKEN_CACHE_FILE.exists():
+                TOKEN_CACHE_FILE.unlink()
             st.session_state["groq_logged_in"]=False
             st.session_state.pop("groq_token", None)
             build_agent.clear()
@@ -200,7 +221,7 @@ else:
         st.subheader("Current PDFs")
         pdfs = sorted(PDF_DIR.glob("*.pdf"))
         if len(pdfs)==0:
-            st.info("Please upload one or more PDFs")
+            st.info("Please upload one or more PDFs to chat with the agent.")
             st.stop()
         for pdf in pdfs:
             col1, col2 = st.columns([4,1])
@@ -214,10 +235,10 @@ else:
 
                     build_vectorstore.clear()
                     build_agent.clear()
+                    #also clear agent cache if pdf deleted
 
                     st.success("Deleted") 
                     st.rerun()
-                    #also clear agent cache if pdf deleted
 
                 
     with st.spinner("Loading Knowledge base..."):
@@ -232,7 +253,6 @@ else:
         with st.chat_message(msg["role"]):
             st.markdown(msg["content"])
     
-
     
 
     #text or audio input
@@ -295,9 +315,11 @@ else:
                         
                             """
 
-                                        
+
+                
                     try:
                         response = agent.run(prompt)
+                      
                     except Exception as first_err:
                         if "tool_use_failed" in str(first_err):
                             response = agent.run(prompt)   # for transient malformed tool_call, retry once
