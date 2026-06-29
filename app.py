@@ -10,7 +10,7 @@ from openai import OpenAI
 from io import BytesIO
 
 from vectorstore import get_vectorstore
-from tt_speech import tts, autoplay_audio
+from tt_speech import tts, render_audio_bubble
 
 load_dotenv() 
 
@@ -119,7 +119,7 @@ TOKEN_CACHE_FILE = Path(".cache/groq_token.txt")
 st.title("RAG-based Assistant")
 if("groq_logged_in" not in st.session_state):
     
-    cached_token = TOKEN_CACHE_FILE.read_text.strip() if TOKEN_CACHE_FILE.exists() else None
+    cached_token = TOKEN_CACHE_FILE.read_text().strip() if TOKEN_CACHE_FILE.exists() else None
 
     if cached_token:                                #first check cache for api key
         st.session_state["groq_token"] = cached_token
@@ -252,6 +252,9 @@ else:
     for msg in st.session_state.messages:
         with st.chat_message(msg["role"]):
             st.markdown(msg["content"])
+            if msg["role"]=="assistant" and msg.get("audio"):
+                render_audio_bubble(msg["audio"], autoplay=False)
+            
     
     
 
@@ -325,26 +328,31 @@ else:
                             response = agent.run(prompt)   # for transient malformed tool_call, retry once
                         else:
                             raise
-
+                audio_bytes = None
                 with st.chat_message("assistant"):
                     st.markdown(response)
                     with st.spinner("Generating audio..."):
                         try:
                             time1 = time.time()
-                            audio_bytes = tts(response)
-                            time2 = time.time()
-                            autoplay_audio(audio_bytes)
-                            time3 = time.time()
-                            print(f"TTs took: {time2-time1}")
-                            print(f"Auto play took: {time3-time2}")
-                            print(f"Total: {time3-time1}")                            
+                            print("time1 checkpoint!")
+                            audio_bytes = tts(response)                            
+                            print("time2 checkpoint!")
+                            # autoplay_audio(audio_bytes)                                                       
                         except Exception as e:
                             print(f"Error occured: {e}")
 
-
-                
+                    time2 = time.time()
+                    print("time3 checkpoint!")
+                    if audio_bytes:
+                        print("time4 checkpoint!")
+                        render_audio_bubble(audio_bytes, autoplay=True)
+                        print("time5 checkpoint!")
+                    time3 = time.time()
+                    print(f"TTs took: {time2-time1}")
+                    print(f"Auto play took: {time3-time2}")
+                    print(f"Total: {time3-time1}")                            
                 st.session_state.messages.append({
-                    "role":"assistant", "content": response
+                    "role":"assistant", "content": response, "audio": audio_bytes
                 
                 })
                 
