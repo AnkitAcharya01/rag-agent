@@ -21,6 +21,10 @@ def get_tts_client():
 @st.cache_resource
 def build_vectorstore():
     return get_vectorstore()
+vstore = get_vectorstore()
+print("printing")
+print(vstore)
+print(type(vstore))
 
 
 #tool
@@ -74,7 +78,7 @@ class PDFRetrieverTool(Tool):
 def build_agent():
     vectorstore=build_vectorstore()
     pdf_tool = PDFRetrieverTool(vectorstore)
-  
+    
 
     groq_key = st.session_state.get("groq_token")
 

@@ -1,11 +1,18 @@
 import hashlib
 import json
-from langchain_community.vectorstores import FAISS
+# from langchain_community.vectorstores import FAISS
 from langchain_huggingface import HuggingFaceEmbeddings
 from pathlib import Path
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_community.document_loaders import PyPDFLoader
 import streamlit as st
+
+from pinecone import Pinecone, ServerlessSpec
+from langchain_pinecone import PineconeVectorStore
+import os, time
+
+INDEX_NAME = "rag-index1"
+
 
 
 def load_all_pdfs(pdf_folder: str):
@@ -47,48 +54,122 @@ def get_embeddings():
 
 
 
-#updated for rebuild after deletion
+#updated for pinecone
+
+
+import os
+import time
+from pathlib import Path
+
+from pinecone import Pinecone, ServerlessSpec
+from langchain_pinecone import PineconeVectorStore
+from langchain_text_splitters import RecursiveCharacterTextSplitter
+
+
+
 def get_vectorstore():
     current_fp = get_pdf_fingerprint()
     embeddings = get_embeddings()
-    rebuild=True
 
-    if(Path(INDEX_DIR).exists() and Path(FINGERPRINT_FILE).exists()):
+    pc = Pinecone(api_key=os.environ["PINECONE_API_KEY"])
+
+    # -----------------------------
+    # 1. CREATE INDEX IF NOT EXISTS
+    # -----------------------------
+    if INDEX_NAME not in pc.list_indexes().names():
+        pc.create_index(
+            name=INDEX_NAME,
+            dimension=384,
+            metric="cosine",
+            spec=ServerlessSpec(
+                cloud="aws",
+                region="us-east-1"
+            )
+        )
+
+    index = pc.Index(INDEX_NAME)
+
+    # wait until ready (important)
+    while not pc.describe_index(INDEX_NAME).status["ready"]:
+        time.sleep(1)
+
+    # -----------------------------
+    # 2. CHECK IF INDEX IS EMPTY
+    # -----------------------------
+    stats = index.describe_index_stats()
+    empty_index = stats.get("total_vector_count", 0) == 0
+
+    # -----------------------------
+    # 3. FINGERPRINT LOGIC
+    # -----------------------------
+    rebuild = empty_index
+
+    if Path(FINGERPRINT_FILE).exists():
         saved_fp = Path(FINGERPRINT_FILE).read_text()
+        if saved_fp != current_fp:
+            rebuild = True
 
-        if saved_fp == current_fp:
-            rebuild=False
-    
+    # -----------------------------
+    # 4. CONNECT VECTORSTORE ALWAYS
+    # -----------------------------
+    vectorstore = PineconeVectorStore(
+        index_name=INDEX_NAME,
+        embedding=embeddings,
+        namespace=""
+    )
+
+    # -----------------------------
+    # 5. RETURN IF NO REBUILD NEEDED
+    # -----------------------------
     if not rebuild:
-        print("Loading existing FAISS files...")
-        return FAISS.load_local(INDEX_DIR, embeddings, allow_dangerous_deserialization=True)
-        
+        print("Using existing Pinecone index (already populated).")
+        return vectorstore
 
-    print("Building new FAISS index...")
-    
-    if Path(INDEX_DIR).exists():
-        import shutil
-        shutil.rmtree(INDEX_DIR)
+    # -----------------------------
+    # 6. REBUILD INDEX
+    # -----------------------------
+    print("Rebuilding Pinecone index...")
 
-    print("Loading pdfs...")
     documents = load_all_pdfs("pdfs")
-    print(f"Loaded {len(documents)} pages")
+
     splitter = RecursiveCharacterTextSplitter(
-        chunk_size = 700,
-        chunk_overlap = 140,
+        chunk_size=700,
+        chunk_overlap=140
     )
 
     chunks = splitter.split_documents(documents)
-    print(f"Created {len(chunks)} chunks.")
+
     if not chunks:
-        print("No chunks created")
-        return None
-    print("Creating vector database...")
-    
-    vectorstore = FAISS.from_documents(chunks, embeddings)
-    print("Vector database Ready!")
-    vectorstore.save_local(INDEX_DIR)
+        raise ValueError("No chunks found from PDFs!")
+
+    print(f"Number of chunks: {len(chunks)}")
+
+    # IMPORTANT: clear old vectors
+    if not empty_index:
+        try:
+            index.delete(delete_all=True, namespace="")
+        except Exception as e:
+            # Pinecone 404s if the namespace doesn't exist yet — safe to ignore
+            print(f"Skip delete (namespace empty/not found): {e}")
+
+    # -----------------------------
+    # 7. INGEST DOCUMENTS
+    # -----------------------------
+    PineconeVectorStore.from_documents(
+        documents=chunks,
+        embedding=embeddings,
+        index_name=INDEX_NAME,
+        pinecone_api_key=os.environ["PINECONE_API_KEY"],
+        namespace=""
+    )
+
+    # save fingerprint only AFTER success
     Path(FINGERPRINT_FILE).write_text(current_fp)
 
+    print("Rebuild complete.")
+
     return vectorstore
+
+
+
                   
