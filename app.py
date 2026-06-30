@@ -181,14 +181,23 @@ else:
 
     #logout button
     with st.sidebar:
-        if st.button("Use a different Groq Key"):
-            if TOKEN_CACHE_FILE.exists():
-                TOKEN_CACHE_FILE.unlink()
-            st.session_state["groq_logged_in"]=False
-            st.session_state.pop("groq_token", None)
-            build_agent.clear()
-            st.rerun()
-            
+        col1, col2, col3 = st.columns([1, 5, 1])
+        with col2:
+            if st.button("Use a different Groq Key"):
+                if TOKEN_CACHE_FILE.exists():
+                    TOKEN_CACHE_FILE.unlink()
+                st.session_state["groq_logged_in"]=False
+                st.session_state.pop("groq_token", None)
+                build_agent.clear()
+                st.rerun()
+
+        #audio playback toggle btn
+        col1, col2, col3 = st.columns([1, 3, 2])
+        with col2:        
+            st.markdown("### Audio Playback")
+        with col3:
+            to_play_audio = st.toggle("AudioToggle", value=True, label_visibility="hidden")    
+        st.divider()
         st.header("PDF Management")
 
         if "uploader_key" not in st.session_state:
@@ -243,7 +252,8 @@ else:
                 
     with st.spinner("Loading Knowledge base..."):
         agent = build_agent()
-    
+
+
     if "messages" not in st.session_state:
         st.session_state.messages=[{"role": "assistant", 
                                     "content": "How can I help you?"}]
@@ -252,7 +262,7 @@ else:
     for msg in st.session_state.messages:
         with st.chat_message(msg["role"]):
             st.markdown(msg["content"])
-            if msg["role"]=="assistant" and msg.get("audio"):
+            if msg["role"]=="assistant" and msg.get("audio") and to_play_audio:
                 render_audio_bubble(msg["audio"], autoplay=False)
             
     
@@ -262,7 +272,7 @@ else:
     prompt = st.chat_input("Ask a question about your PDFs...", 
                           accept_audio=True,
                           audio_sample_rate=16000)
-
+    
     if prompt:
         query=None
         
@@ -330,31 +340,35 @@ else:
                             raise
                 audio_bytes = None
                 with st.chat_message("assistant"):
+                    
+                    st.session_state.messages.append({
+                    "role":"assistant", "content": response, "audio": audio_bytes                    
+                    })
                     st.markdown(response)
-                    with st.spinner("Generating audio..."):
-                        try:
-                            time1 = time.time()
-                            print("time1 checkpoint!")
-                            audio_bytes = tts(response)                            
-                            print("time2 checkpoint!")
-                            # autoplay_audio(audio_bytes)                                                       
-                        except Exception as e:
-                            print(f"Error occured: {e}")
 
-                    time2 = time.time()
-                    print("time3 checkpoint!")
-                    if audio_bytes:
-                        print("time4 checkpoint!")
-                        render_audio_bubble(audio_bytes, autoplay=True)
-                        print("time5 checkpoint!")
-                    time3 = time.time()
-                    print(f"TTs took: {time2-time1}")
-                    print(f"Auto play took: {time3-time2}")
-                    print(f"Total: {time3-time1}")                            
-                st.session_state.messages.append({
-                    "role":"assistant", "content": response, "audio": audio_bytes
-                
-                })
+                    if to_play_audio:
+                        with st.spinner("Generating audio..."):
+                            try:
+                                time1 = time.time()
+                                print("time1 checkpoint!")
+                                audio_bytes = tts(response)                            
+                                print("time2 checkpoint!")
+                                # autoplay_audio(audio_bytes)                                                       
+                            except Exception as e:
+                                print(f"Error occured: {e}")
+
+                        time2 = time.time()
+                        print("time3 checkpoint!")
+                        if audio_bytes:
+                            print("time4 checkpoint!")
+                            render_audio_bubble(audio_bytes, autoplay=True)
+                            print("time5 checkpoint!")
+                        time3 = time.time()
+                        print(f"TTs took: {time2-time1}")
+                        print(f"Auto play took: {time3-time2}")
+                        print(f"Total: {time3-time1}")                            
+                st.session_state.messages[-1]["audio"] = audio_bytes
+                            
                 
             except Exception as e:
                 st.error(f"Error occured: {e}")
