@@ -73,9 +73,8 @@ def get_vectorstore():
 
     pc = Pinecone(api_key=os.environ["PINECONE_API_KEY"])
 
-    # -----------------------------
-    # 1. CREATE INDEX IF NOT EXISTS
-    # -----------------------------
+    
+    # CREATE INDEX IF NOT EXISTS    
     if INDEX_NAME not in pc.list_indexes().names():
         pc.create_index(
             name=INDEX_NAME,
@@ -89,19 +88,16 @@ def get_vectorstore():
 
     index = pc.Index(INDEX_NAME)
 
-    # wait until ready (important)
+    # wait until ready 
     while not pc.describe_index(INDEX_NAME).status["ready"]:
         time.sleep(1)
-
-    # -----------------------------
-    # 2. CHECK IF INDEX IS EMPTY
-    # -----------------------------
+    
+    # CHECK IF INDEX IS EMPTY
     stats = index.describe_index_stats()
     empty_index = stats.get("total_vector_count", 0) == 0
 
-    # -----------------------------
-    # 3. FINGERPRINT LOGIC
-    # -----------------------------
+    
+    # FINGERPRINT LOGIC    
     rebuild = empty_index
 
     if Path(FINGERPRINT_FILE).exists():
@@ -109,25 +105,23 @@ def get_vectorstore():
         if saved_fp != current_fp:
             rebuild = True
 
-    # -----------------------------
-    # 4. CONNECT VECTORSTORE ALWAYS
-    # -----------------------------
+    
+    # CONNECT VECTORSTORE ALWAYS    
     vectorstore = PineconeVectorStore(
         index_name=INDEX_NAME,
         embedding=embeddings,
         namespace=""
     )
 
-    # -----------------------------
-    # 5. RETURN IF NO REBUILD NEEDED
-    # -----------------------------
+    
+    # RETURN IF NO REBUILD NEEDED    
     if not rebuild:
         print("Using existing Pinecone index (already populated).")
         return vectorstore
 
-    # -----------------------------
-    # 6. REBUILD INDEX
-    # -----------------------------
+    
+    # REBUILD INDEX
+    
     print("Rebuilding Pinecone index...")
 
     documents = load_all_pdfs("pdfs")
@@ -152,9 +146,9 @@ def get_vectorstore():
             # Pinecone 404s if the namespace doesn't exist yet — safe to ignore
             print(f"Skip delete (namespace empty/not found): {e}")
 
-    # -----------------------------
-    # 7. INGEST DOCUMENTS
-    # -----------------------------
+    
+    # INGEST DOCUMENTS
+    
     PineconeVectorStore.from_documents(
         documents=chunks,
         embedding=embeddings,

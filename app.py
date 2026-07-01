@@ -21,10 +21,7 @@ def get_tts_client():
 @st.cache_resource
 def build_vectorstore():
     return get_vectorstore()
-vstore = get_vectorstore()
-print("printing")
-print(vstore)
-print(type(vstore))
+
 
 
 #tool
@@ -101,10 +98,12 @@ def build_agent():
     )
     return agent
 
-transcription_client = OpenAI(
-    api_key=os.getenv("GROQ_API_KEY"),
-    base_url="https://api.groq.com/openai/v1"
-)
+@st.cache_resource
+def get_transcription_client():
+    return OpenAI(
+        api_key=os.getenv("GROQ_API_KEY"),
+        base_url="https://api.groq.com/openai/v1"
+    )
 
 def login_verification(token):
     with st.spinner("Verifying..."):
@@ -216,18 +215,23 @@ else:
         )
         
         if uploaded_files:
-            for uploaded_file in uploaded_files:
-                save_path = PDF_DIR / uploaded_file.name
+            with st.status("Uploading and indexing...", expanded=True) as status:
+                for uploaded_file in uploaded_files:
+                    save_path = PDF_DIR / uploaded_file.name
 
-                with open(save_path, "wb") as f:
-                    f.write(uploaded_file.getbuffer())
+                    with open(save_path, "wb") as f:
+                        f.write(uploaded_file.getbuffer())
             
-            #clear cache 
-            build_vectorstore.clear()
-            build_agent.clear()
-            st.session_state["uploader_key"]+=1
-            st.success("PDFs uploaded.")
-            st.rerun()
+                st.write("Rebuilding Index")
+                build_vectorstore.clear()
+                build_agent.clear()
+                st.session_state["agent_ready"] = False
+                build_agent()
+                st.session_state["agent_ready"] = True
+                status.update(label="Done!", state="complete") 
+                st.session_state["uploader_key"]+=1
+                st.success("PDFs uploaded.")
+                st.rerun()
         
         st.divider()
         #shows the list of pdfs 
@@ -248,13 +252,18 @@ else:
 
                     build_vectorstore.clear()
                     build_agent.clear()
+                    st.session_state["agent_ready"] = False 
                     #also clear agent cache if pdf deleted
 
                     st.success("Deleted") 
                     st.rerun()
+                    
 
-                
-    with st.spinner("Loading Knowledge base..."):
+    if not st.session_state.get("agent_ready"):
+        with st.spinner("Loading Knowledge base..."):
+            agent = build_agent()
+        st.session_state["agent_ready"] = True
+    else:
         agent = build_agent()
 
 
@@ -287,7 +296,7 @@ else:
                 audio_file = BytesIO(audio_bytes)
                 audio_file.name = "audio.wav"
 
-                transcript = transcription_client.audio.transcriptions.create(
+                transcript = get_transcription_client().audio.transcriptions.create(
                     model = "whisper-large-v3-turbo",
                     file = audio_file
                 )
