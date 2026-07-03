@@ -255,7 +255,7 @@ else:
                     st.session_state["agent_ready"] = False 
                     #also clear agent cache if pdf deleted
 
-                    st.success("Deleted") 
+                    st.success("Deleted pdf") 
                     st.rerun()
                     
 
@@ -384,5 +384,5 @@ else:
                             
                 
             except Exception as e:
-                st.error(f"Error occured: {e}")
+                st.error(f"An Error occured: {e}")
     
