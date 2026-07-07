@@ -240,6 +240,17 @@ You can continue conversations without repeating context. The agent maintains ch
 
 You can use the microphone button at the right side of the textbox to start audio input.
 Currently only english is recommended.
+The agent speaks what it generates as response, which you can see in a bubble.
+If you dont want to hear it speak, you can turn off the **Audio Playback** toggle in the sidebar.
+
+## Database logging for out-of-bound queries
+
+When you ask a question that the Agent cant find in the pdfs you posted, it informs you that it was unable to retrieve the information.
+Under the hood, it logs that specific query into the database, which can be used to improve the documents for future.
+
+
+
+
 
 ## Future Improvements
 
